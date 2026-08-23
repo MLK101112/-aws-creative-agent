@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  NovaChronicles - Autonomous Generative Multiverse Agent
+  Weekend Challenge: Set your creative app free! (AWS Builder Center)
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 512
+    Runtime: python3.12
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        DYNAMODB_TABLE: !Ref MultiverseStateTable
+        ASSETS_BUCKET: !Ref ChroniclesAssetsBucket
+        BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0"
+        BEDROCK_IMAGE_MODEL_ID: "amazon.nova-canvas-v1:0"
+        APP_ENVIRONMENT: "production"
+
+Resources:
+  # ============================================================================
+  # 1. STORAGE: DynamoDB Table for Multiverse Lore & Episodic Memory
+  # ============================================================================
+  MultiverseStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: NovaChronicles-State
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: NovaChronicles
+        - Key: Challenge
+          Value: AWSBuilderCenter-WeekendCreativeAgent
+
+  # ============================================================================
+  # 2. STORAGE: S3 Bucket for Generated Chronicles, Canvas Art & Soundscapes
+  # ============================================================================
+  ChroniclesAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "novachronicles-assets-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: false
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3000
+
+  ChroniclesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ChroniclesAssetsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub "${ChroniclesAssetsBucket.Arn}/*"
+
+  # ============================================================================
+  # 3. COMPUTE: Agent Orchestrator Lambda Function
+  # ============================================================================
+  AgentOrchestratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: agent_orchestrator.lambda_handler
+      Description: Autonomous Agent that runs nightly to evolve the multiverse story, invoke Bedrock, and publish daily chronicles.
+      Policies:
+        # DynamoDB Read/Write Access
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MultiverseStateTable
+        # S3 Bucket Read/Write Access
+        - S3CrudPolicy:
+            BucketName: !Ref ChroniclesAssetsBucket
+        # Bedrock Foundation Models Access
+        - Statement:
+            - Sid: BedrockInvokeModelPolicy
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.nova-pro-v1:0"
+                - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.nova-lite-v1:0"
+                - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.nova-canvas-v1:0"
+                - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-image-generator-v2:0"
+                - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
+      Events:
+        # Autonomous Nightly Trigger (Runs every day at 00:00 UTC)
+        NightlyAutonomousSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 0 * * ? *)
+            Name: NovaChroniclesNightlyEvolve
+            Description: "Autonomous cron trigger to evolve the multiverse while the world sleeps."
+            Enabled: true
+            Input: '{"source": "aws.events", "action": "AUTONOMOUS_NIGHTLY_PULSE"}'
+        
+        # Dawn Awakening Trigger (Runs every day at 06:00 UTC for morning delivery)
+        DawnDeliverySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 6 * * ? *)
+            Name: NovaChroniclesDawnPublish
+            Description: "Autonomous morning check to curate and finalize the daily dispatch."
+            Enabled: true
+            Input: '{"source": "aws.events", "action": "DAWN_DISPATCH"}'
+
+        # API Gateway Trigger for manual simulation and dashboard queries
+        HttpApiTrigger:
+          Type: HttpApi
+          Properties:
+            Path: /api/{proxy+}
+            Method: ANY
+
+  # ============================================================================
+  # 4. HTTP API GATEWAY: REST endpoints for the Web Studio
+  # ============================================================================
+  NovaChroniclesApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowOrigins:
+          - "*"
+
+Outputs:
+  ApiEndpoint:
+    Description: "HTTP API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  AssetsBucketName:
+    Description: "S3 Assets Bucket Name"
+    Value: !Ref ChroniclesAssetsBucket
+  StateTableName:
+    Description: "DynamoDB State Table Name"
+    Value: !Ref MultiverseStateTable
+  LambdaFunctionArn:
+    Description: "Agent Orchestrator Lambda ARN"
+    Value: !GetAtt AgentOrchestratorFunction.Arn

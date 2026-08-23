@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments & dependencies
+.env
+.venv
+env/
+venv/
+ENV/
+
+# AWS SAM build artifacts
+.aws-sam/
+
+# IDE files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
