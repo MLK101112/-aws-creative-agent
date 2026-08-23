@@ -18,3 +18,7 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Personal knowledge & submission notes (local only)
+ARTICLE_SUBMISSION.md
+EXPLAIN_LIKE_IM_5.md
